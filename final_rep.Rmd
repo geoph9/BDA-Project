@@ -27,10 +27,9 @@ Before describing the problem thouroughly, we would like to provide a brief insi
 
 The tournament itself consists of two stages: qualifications and main event. The latter is also splitted into two parts: group stage, and play-offs. During the group stage, teams compete in order to have a better starting position in the play-off stage. For our analysis, we used the data from the last TI where the best teams of the world competed.
 
+The professional Dota 2 scene is divided into different regions (e.g. Europe, CIS, China, etc). Teams from this regions participate in qualifications separately, and the very first goal of the team is to become the best within their region. As a result, teams from one region play with each other much more often, and it can influence the way they perform. Hence, we also used information about teams regions while modelling.
+
 Our aim is to find a way to predict the match result based on the performances of the competing teams (the way performances are computed is discussed later). In other words, we propose a way to make the analysis of the previous matches in which teams participated, and take those results to predict how they would perform in the future.
-
-In addition, our analysis also aims to prove a hypothesis that teams from different regions (e.g. Europe, CIS, China, etc) can represent different playstyles (like offensive or defensive ones). **TOCHECK: How are we going to represent/predict playstyles?** 
-
 
 # Data and Preprocessing
 
@@ -40,7 +39,7 @@ For our analysis, we used the data from the group stage of the tournament as eac
 
 The next step was to define a new metric in order to quantify the teams' performances. To do this we used a mixture of different measures/scores which we then normalized and used its sum. The initial features can be seen below:
 
-```{r var_table}
+```{r var_table, echo=FALSE}
 variable <- c("radiant_score", "dire_score", "radiant_xp_adv", "radiant_gold_adv", 
               "hero_damage", "hero_healing", "obs_placed", "kda")
 description <- c("Final score for the Radiant team(number of kills on Radiant)", 
@@ -76,7 +75,7 @@ where $R_{score}$ denotes the radiant team score,  and $P_R$ is the set of all r
 *NOTE: This equation is over-simplified since it does not take normalization into account (having all values in the same range).*
 
 Each of these functions is described below:
-```{r var_table_matches}
+```{r var_table_matches, echo=FALSE}
 match_vars <- c("score_gap", "exp_advantage", "gold_advantage", "hero_damage", 
               "healing_done", "kda", "wards_placed")
 match_vars_desc <- c("Radiant score minus Dire score (so it can also be negative).", 
