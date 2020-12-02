@@ -126,17 +126,14 @@ The prediction workflow for a match between team $X$ and $Y$ of region is the fo
 1. Sample a new performance score for team $X$.
 2. Sample a new performance score for team $Y$.
 
-
+### Choice of Priors
 
 ## Separate Model
 
 For comparison, we also built a separate model which "..."
 
+### Choice of Priors
 
-
-# Models
-
-# Priors
 
 # Convergence Diagnostics
 
