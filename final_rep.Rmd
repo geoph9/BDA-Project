@@ -1,9 +1,16 @@
 ---
 title: "Bayesian Analysis of Esports Teams' Perfomances"
-author: "Ekaterina Marchenko, Georgios Karakasidis, Rongzhi Liu"
+subtitle: "Aalto University"
+author: 
+- Ekaterina Marchenko \and
+- Georgios Karakasidis \and
+- Rongzhi Liu
+date: "`r format(Sys.time(), '%d %B %Y')`"
 output: pdf_document
 editor_options: 
   chunk_output_type: console
+bibliography: references.bibtex
+urlcolor: blue
 ---
 
 ```{r setup, include=FALSE}
@@ -24,15 +31,6 @@ Our aim is to find a way to predict the match result based on the performances o
 
 In addition, our analysis also aims to prove a hypothesis that teams from different regions (e.g. Europe, CIS, China, etc) can represent different playstyles (like offensive or defensive ones). **TOCHECK: How are we going to represent/predict playstyles?** 
 
-==============================================
-
-## TOCHECK:
-
-(I am not sure about this sentence here - seems too early to mention a model and also the analogy to the course assignment is not that "formal") 
-
-Hence, for the hierarchical model, which will be discussed in more details further, we used regions as a metaphorical machine from the factory assignments.
-
-==============================================
 
 # Data and Preprocessing
 
@@ -109,20 +107,30 @@ As you can see, a rather simplistic approach was used to combine the data but th
 - Positive performance scores should probably result in a Radiant win (not always).
 - Negative scores should point us to the direction that Dire will most probably win.
 
+For more information about the implementation you may check the [data transformation appendix](#data-transformation). An important note here is that, for each match, the $score\_gap$, $exp\_gap$ and $gold\_advantage$ columns for the Dire team are multiplied by $-1$ so that they will be positive in case the Dire has positive statistics (and negative otherwise). 
+
 # Problem Solving
 
-By preprocessing our data we managed to get a single scoring measurement for each team. Our next step is to build a model on top of these transformed data and try to predict future scores (future performances). 
-
-**TOCHECK: THIS IS PROBABLY WRONG.**
-The goal is to represent our data in many 2-dimensional arrays for every region. Then, for each array the rows will denote the matches and the columns will denote the teams (of a certain region). The content of each array cell will be the above performance scores.
+By preprocessing our data we managed to get a single scoring measurement for each team. Our next step is to build a model on top of these transformed data and try to predict/sample future scores (future performances). We are going to represent our data as a 2-dimensional array which will contain information about each team. The rows will denote the matches and the columns will denote the teams, while the content of each array cell will be the above performance scores.
 
 
 Below, we are going to describe two model-architecture approaches which we saw during the course. 
 
-## Separate Model
-
 
 ## Hierarchical Model
+
+The goal here is to create a hierarchical model for the teams of each region. We achieved this by using rstan [@rstan] (see [appendix](#stan-code)). 
+
+The prediction workflow for a match between team $X$ and $Y$ of region is the following: 
+
+1. Sample a new performance score for team $X$.
+2. Sample a new performance score for team $Y$.
+
+
+
+## Separate Model
+
+For comparison, we also built a separate model which "..."
 
 
 
@@ -148,4 +156,70 @@ Below, we are going to describe two model-architecture approaches which we saw d
 
 # Appendix
 
+## Data Transformation
+
+Below, we present the python functions that were used for data preprocessing and for computing the performance for a single team of a single match.
+
+```python
+def _score_gap(match):
+    # Simple score difference
+    score = match[['radiant_score', 'dire_score']].values[0]
+    return score[0] - score[1]
+    
+def _xp_gap(match, use_weights=True):
+    # Take the sum of the xp advantages (over all minutes)
+    xp_list = np.array(ast.literal_eval(pd.unique(match.radiant_xp_adv)[0]))
+    # A negative sum would mean that the radiant team was on a disadvantage 
+    # most of the times
+    if use_weights:
+        # The last few minutes are more important and so we should give a 
+        # greater weight to these
+        weights = np.linspace(0.1, 1, num=len(xp_list))  # avoid zero weights
+        xp_list_weighted = weights * xp_list
+        return np.sum(xp_list_weighted)
+    return np.sum(xp_list)
+
+def _gold_advantage(match, use_weights=True):
+    gold_list = np.array(ast.literal_eval(pd.unique(match.radiant_gold_adv)[0]))
+    # A negative sum would mean that the radiant team had less gold for 
+    # most of the game
+    if use_weights:
+        weights = np.linspace(0.1, 1, num=len(gold_list))
+        gold_list_weighted = weights * gold_list
+        return np.sum(gold_list_weighted)
+    return np.sum(xp_list)
+    
+def _hero_specific_scores_v2(match):  # hero damage and hero healing
+    stats = {
+        "damage": match['hero_damage'].values, 
+        "healing": match['hero_healing'].values,
+        "kda": match['kda'].values,
+        "wards": match['obs_placed'].values,
+    }  # will contain the damage and healing scores for the radiant players
+    # Simply use the sum
+    dmg_diff = np.sum(stats['damage'])
+    heal_diff = np.sum(stats['healing'])
+    kda_diff = np.sum(stats['kda'])
+    wards_diff = np.sum(stats['wards'])
+    return dmg_diff, heal_diff, kda_diff, wards_diff
+    
+def performance(match):
+    # match should be a dataframe that contains 5 rows 
+    #    (a match entry for a certain team)
+    score_gap = _score_gap(match)
+    xp_gap = _xp_gap(match, use_weights=True)
+    gold_adv = _gold_advantage(match, use_weights=True)
+    # case 3 (simplistic approach)
+    total_dmg, total_heal, total_kda, total_wards = _hero_specific_scores_v2(match)  
+    return score_gap, xp_gap, gold_adv, total_dmg, total_heal, total_kda, total_wards
+```
+
+By using the performance function above for both teams of every match we can get a new dataset which will contain all of the $7$ characteristics returned by $performance$. We can then normalize these values with the method mentioned in the [Data and Preprocessing](#data-and-preprocessing) section and then simply sum the values of each row in order to get the final performance score.
+
+
+
 ## Stan code
+
+**TODO: ADD STAN CODE HERE**
+
+# References
