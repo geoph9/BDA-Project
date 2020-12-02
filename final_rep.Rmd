@@ -1,5 +1,5 @@
 ---
-title: "Bayesian Analysis of the Dota 2 Professional Teams Perfomances"
+title: "Bayesian Analysis of Esports Teams' Perfomances"
 author: "Ekaterina Marchenko, Georgios Karakasidis, Rongzhi Liu"
 output: pdf_document
 editor_options: 
@@ -14,31 +14,117 @@ library(rstan)
 
 # Introduction
 
-In this report, we present the Bayesian analysis of the esports team performances. This topic was chosen due to the personal interest of our team in esports. We formed the group based on this, and all of us were familiar with either Dota 2 or League of Legends. Before describing the problem thouroughly, we would like to provide a brief insight into the scope. Dota 2 is a MOBA game and an esports discipline. Like in the traditional sports, there are professional seasons which roughly equal to a year, and which are finished with the main tournament -- The International (TI). The tournament itself consists of two stages: qualifications and main event. The latter is also splitted into two parts: group stage, and play-offs. During the group stage, teams compete in order to have a better starting position in the play-off stage. For our analysis, we used the data from the last TI where the best teams of the world competed.
+In this report, we present a Bayesian Analysis approach for evaluating team performances for the esport *Dota 2*. This topic was chosen due to the personal interest of our team members in esports. We formed the group based on this and all of us were familiar with either Dota 2 or League of Legends. 
 
-As a problem, we took prediction of the match result based on perfomances of the team. In other words, we propose a way to make the analysis of the previous matches in which teams participated, and take those results to predict how they would perform in the future. 
+Before describing the problem thouroughly, we would like to provide a brief insight into the scope. Dota 2 is a MOBA game and an esports discipline. Esports have a similar structure as traditional sports, where there are professional seasons which roughly equal to a year, and these are finished with a main tournament (in our case: *The International (TI)*). 
 
-In our analysis, we pursue a hypothesis that teams from different regions (e.g. Europe, CIS, China, etc) can represent different playstyles (like offensive or defensive ones). Hence, for the hierarchical model which will be discussed in more details further we used regions as a metaphorical machine from the factory assignments.
+The tournament itself consists of two stages: qualifications and main event. The latter is also splitted into two parts: group stage, and play-offs. During the group stage, teams compete in order to have a better starting position in the play-off stage. For our analysis, we used the data from the last TI where the best teams of the world competed.
 
-# Data and the Analysis Problem
+Our aim is to find a way to predict the match result based on the performances of the competing teams (the way performances are computed is discussed later). In other words, we propose a way to make the analysis of the previous matches in which teams participated, and take those results to predict how they would perform in the future.
 
-For the analysis, we used performance of teams which competed in The International 2019. The data was gathered with Python programmin language in two steps: at first, matches IDs were collected from [DotaBuff](https://www.dotabuff.com/esports/events/284-ti9-group-main); then, using the obtained IDs, detailed information about each match was collected from [OpenDota](https://docs.opendota.com/#tag/matches).  
+In addition, our analysis also aims to prove a hypothesis that teams from different regions (e.g. Europe, CIS, China, etc) can represent different playstyles (like offensive or defensive ones). **TOCHECK: How are we going to represent/predict playstyles?** 
 
-To create the metric of general *performance*, the following variables were used: 
+==============================================
+
+## TOCHECK:
+
+(I am not sure about this sentence here - seems too early to mention a model and also the analogy to the course assignment is not that "formal") 
+
+Hence, for the hierarchical model, which will be discussed in more details further, we used regions as a metaphorical machine from the factory assignments.
+
+==============================================
+
+# Data and Preprocessing
+
+In our analysis, we decided to use the results of **The International 2019** Tournament, the results of which are available online through some APIs. The data was gathered with the Python programming language in two steps. At first, match IDs were collected from [DotaBuff](https://www.dotabuff.com/esports/events/284-ti9-group-main). Afterwards, we used the obtained IDs in order to acquire detailed information about each match. For the latter we used the [OpenDota API](https://docs.opendota.com/#tag/matches).
+
+For our analysis, we used the data from the group stage of the tournament as each team played the same amount of matches. On the other hand, for the posterior predictive checks (which will be discussed in the next section), we made predictions for the play-off stage of TI9. 
+
+The next step was to define a new metric in order to quantify the teams' performances. To do this we used a mixture of different measures/scores which we then normalized and used its sum. The initial features can be seen below:
 
 ```{r var_table}
 variable <- c("radiant_score", "dire_score", "radiant_xp_adv", "radiant_gold_adv", 
               "hero_damage", "hero_healing", "obs_placed", "kda")
-description <- c("Final score for Radiant (number of kills on Radiant)", "Final score for Dire (number of kills on Dire)", "Array of the Radiant experience advantage at each minute in the game. A negative number means that Radiant is behind, and thus it is their experience disadvantage.", "Array of the Radiant gold advantage at each minute in the game. A negative number means that Radiant is behind, and thus it is their gold disadvantage.", "Hero Damage Dealt", "Hero Healing Done", "Total number of observer wards placed", "kda (ratio of kills/deaths/assists)")
+description <- c("Final score for the Radiant team(number of kills on Radiant)", 
+                 "Final score for the Dire team (number of kills on Dire)", 
+                 "Array of the Radiant experience advantage at each \\
+                     minute in the game. A negative number means that \\
+                     Radiant is behind, and thus it is their experience disadvantage.",
+                 "Array of the Radiant gold advantage at each minute in the game. \\
+                     A negative number means that Radiant is behind, and thus it is \\
+                     their gold disadvantage.", "Hero Damage Dealt (user specific)", 
+                 "Hero Healing Done (user specific)", 
+                 "Total number of observer wards placed (user specific)", 
+                 "kda (ratio of kills/deaths/assists) (user specific)")
 
-knitr::kable(data.frame(variable, description))
+knitr::kable(data.frame(variable, description), format = 'pipe', padding=100,
+             col.names = c("Variable Names", "Description"))
 ```
 
-They were *WHAT?? the process of transformation*. 
+These features were extracted for each match and contain information about both of the teams. Since each Dota 2 game consists of $5$ players, this means that we end up with $10$ data points for each match. 
 
-For the analysis, we used the data from the group stage of the tournament as each team played the same amount of matches. For the posterior predictive checks, we made predictions for the play-off stage of TI9. 
+As you can see from the table above, the first $4$ features have to do with team statistics while the rest $4$ have to do with user-specific statistics since they evaluate the performance of each player separately. Our goal is to find a way to combine these features so that the result will be a performance score for each team, for each match. 
 
-*THE ANALYSIS PROBLEM*
+Our approach to this can be described by the following equation which assigns a score to each team for each match:
+$$
+R_{score} = score\_gap + exp\_advantage + gold\_advantage + 
+$$
+$$
+\sum_{\forall p \in P_{R}} hero\_damage(p) + healing\_done(p) + kda(p) + wards\_placed(p)
+$$
+
+where $R_{score}$ denotes the radiant team score,  and $P_R$ is the set of all radiant players on the specific match. The same was also applied for the dire team.
+
+*NOTE: This equation is over-simplified since it does not take normalization into account (having all values in the same range).*
+
+Each of these functions is described below:
+```{r var_table_matches}
+match_vars <- c("score_gap", "exp_advantage", "gold_advantage", "hero_damage", 
+              "healing_done", "kda", "wards_placed")
+match_vars_desc <- c("Radiant score minus Dire score (so it can also be negative).", 
+                 "A weighted sum of the experience advantage that Radiant had during \\
+                     the game (can also be negative). We are giving bigger weights \\
+                     to the scores at the end of the game since they are more \\
+                     informative about the final result.", 
+                 "A weighted sum of the gold advantage that Radiant had during \\
+                     the game (can also be negative). We are giving bigger weights \\
+                     to the scores at the end of the game since they are more \\
+                     informative about the final result.", 
+                 "Simplistic Approach: The difference of the sum of the damage dealt by \\
+                 all Radiant players when compared to Dire players.", 
+                 "Simplistic Approach: The difference of the sum of the healing that \\
+                 was done by all Radiant players when compared to Dire players.", 
+                 "Simplistic Approach: The difference of the sum of kdas of \\
+                 all Radiant players when compared to Dire players.", 
+                 "Simplistic Approach: The difference of the sum of the number of \\
+                 observation wards that were placed by all Radiant players when \\
+                 compared to Dire players.")
+
+knitr::kable(data.frame(match_vars, match_vars_desc), format = 'pipe', padding=100,
+             col.names = c("Variable Names", "Description"))
+```
+
+As you can see, a rather simplistic approach was used to combine the data but this was the most effective one. As a normalization technique we are currently using MinMax scaling which will not convert our values to positive numbers and so it will keep the notion of:
+
+- Positive performance scores should probably result in a Radiant win (not always).
+- Negative scores should point us to the direction that Dire will most probably win.
+
+# Problem Solving
+
+By preprocessing our data we managed to get a single scoring measurement for each team. Our next step is to build a model on top of these transformed data and try to predict future scores (future performances). 
+
+**TOCHECK: THIS IS PROBABLY WRONG.**
+The goal is to represent our data in many 2-dimensional arrays for every region. Then, for each array the rows will denote the matches and the columns will denote the teams (of a certain region). The content of each array cell will be the above performance scores.
+
+
+Below, we are going to describe two model-architecture approaches which we saw during the course. 
+
+## Separate Model
+
+
+## Hierarchical Model
+
+
 
 # Models
 
