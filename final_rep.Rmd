@@ -1,0 +1,65 @@
+---
+title: "Bayesian Analysis of the Dota 2 Professional Teams Perfomances"
+author: "Ekaterina Marchenko, Georgios Karakasidis, Rongzhi Liu"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rstan)
+```
+
+# Introduction
+
+In this report, we present the Bayesian analysis of the esports team performances. This topic was chosen due to the personal interest of our team in esports. We formed the group based on this, and all of us were familiar with either Dota 2 or League of Legends. Before describing the problem thouroughly, we would like to provide a brief insight into the scope. Dota 2 is a MOBA game and an esports discipline. Like in the traditional sports, there are professional seasons which roughly equal to a year, and which are finished with the main tournament -- The International (TI). The tournament itself consists of two stages: qualifications and main event. The latter is also splitted into two parts: group stage, and play-offs. During the group stage, teams compete in order to have a better starting position in the play-off stage. For our analysis, we used the data from the last TI where the best teams of the world competed.
+
+As a problem, we took prediction of the match result based on perfomances of the team. In other words, we propose a way to make the analysis of the previous matches in which teams participated, and take those results to predict how they would perform in the future. 
+
+In our analysis, we pursue a hypothesis that teams from different regions (e.g. Europe, CIS, China, etc) can represent different playstyles (like offensive or defensive ones). Hence, for the hierarchical model which will be discussed in more details further we used regions as a metaphorical machine from the factory assignments.
+
+# Data and the Analysis Problem
+
+For the analysis, we used performance of teams which competed in The International 2019. The data was gathered with Python programmin language in two steps: at first, matches IDs were collected from [DotaBuff](https://www.dotabuff.com/esports/events/284-ti9-group-main); then, using the obtained IDs, detailed information about each match was collected from [OpenDota](https://docs.opendota.com/#tag/matches).  
+
+To create the metric of general *performance*, the following variables were used: 
+
+```{r var_table}
+variable <- c("radiant_score", "dire_score", "radiant_xp_adv", "radiant_gold_adv", 
+              "hero_damage", "hero_healing", "obs_placed", "kda")
+description <- c("Final score for Radiant (number of kills on Radiant)", "Final score for Dire (number of kills on Dire)", "Array of the Radiant experience advantage at each minute in the game. A negative number means that Radiant is behind, and thus it is their experience disadvantage.", "Array of the Radiant gold advantage at each minute in the game. A negative number means that Radiant is behind, and thus it is their gold disadvantage.", "Hero Damage Dealt", "Hero Healing Done", "Total number of observer wards placed", "kda (ratio of kills/deaths/assists)")
+
+knitr::kable(data.frame(variable, description))
+```
+
+They were *WHAT?? the process of transformation*. 
+
+For the analysis, we used the data from the group stage of the tournament as each team played the same amount of matches. For the posterior predictive checks, we made predictions for the play-off stage of TI9. 
+
+*THE ANALYSIS PROBLEM*
+
+# Models
+
+# Priors
+
+# Convergence Diagnostics
+
+# Posterior Predictive Checks
+
+# Model Comparison
+
+# Predictive Performance Assessment
+
+# Sensitivity Analysis
+
+# Discussion of Issues and Possible Improvements
+
+# Conclusion
+
+# Self-Reflection
+
+# Appendix
+
+## Stan code
