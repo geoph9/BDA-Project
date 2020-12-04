@@ -1,0 +1,32 @@
+# SEPARATE MODEL
+
+Сomputed from 4000 by 288 log-likelihood matrix
+
+         Estimate   SE
+elpd_loo   -565.8 43.4
+p_loo       158.3 27.4
+looic      1131.6 86.9
+------
+Monte Carlo SE of elpd_loo is NA.
+
+Pareto k diagnostic values:
+                         Count Pct.    Min. n_eff
+(-Inf, 0.5]   (good)     249   86.5%   745       
+ (0.5, 0.7]   (ok)        19    6.6%   131       
+   (0.7, 1]   (bad)        8    2.8%   21        
+   (1, Inf)   (very bad)  12    4.2%   1         
+See help('pareto-k-diagnostic') for details.
+
+# HIERARCHICAL MODEL
+
+Computed from 4000 by 288 log-likelihood matrix
+
+         Estimate   SE
+elpd_loo   -335.9 10.4
+p_loo        14.1  1.1
+looic       671.7 20.7
+------
+Monte Carlo SE of elpd_loo is 0.1.
+
+All Pareto k estimates are good (k < 0.5).
+See help('pareto-k-diagnostic') for details.
