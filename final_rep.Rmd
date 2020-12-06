@@ -249,7 +249,8 @@ The prediction workflow for a series match between team $X$ and $Y$ is the follo
 
 1. A normal series is a two out of three game series. But here we only compare each team's expected performance scores to predict who is more likely to win in the series.
 
-2. The $ypred$ in stan code represents the predict performance score of each team. So we compare the $ypred$ of team $X$ and $Y$, we could get the win possibility. The function predict_result_sm below will do this:
+2. The $ypred$ in the stan code represents the predictive performance score of each team. So, by comparing the $ypred$ of team $X$ and $Y$, we could get the win possibility. The function `predict_result_sm` below will do this:
+
 ```{r}
 predict_result_sm <- function(team_num_1, team_num_2) {
   ypred_1 <- draws_sm[, 36 + team_num_1]
@@ -284,39 +285,53 @@ compare <- function(team_name_1,team_name_2){
 compare("PSG.LGD","VP")
 ```
 
-We actually apply this method to all the series in main event. Here is the predict result compare to the real one. The green boxes indicate that the predictions correspond to the actual results, red boxes indicate that the predictions do not correspond to the actual results.
+We actually apply this method to all of the series in the main event. Here are the prediction result compared to the real ones. The green boxes indicate that the predictions correspond to the actual results, while red boxes indicate that the predictions do not correspond to the actual results (missclassification).
 
-Predictive Performance of separate model: 
+Predictive Performance of the separate model: 
 
 ![separate_result](./pictures/separate_result.png)
 
-Predictive Performance of hierarchical model:  
+Predictive Performance of the hierarchical model:  
 
 ![hierarchical_result](./pictures/hierarchical_result.png)
 
 ## Analysis
-We could find there is no significant difference in the results between separate model and hierarchical model. It shows that regional factors do not play a significant role. In other words, there are no significant differences between the teams in the different regions.
+As you can see, there is no significant difference in the results between the separate model and the hierarchical model. This proves that regional factors do not play a significant role. In other words, there are no significant differences between the teams in the different regions.
 
-And the prediction accuracy is not very high.The reasons could be the following:
+It is also worth mentioning that the prediction accuracy is not very high. Possible reasons are the following:
 
-1. We just predict the main event result based on group stage performance. It often happens that a team is in poor form in the group stage, but gets better and better in the knockout stages. With this type of team, our predictions are difficult to be accurate. Like the Team Liquid, it was only 14th out of all teams in the group stage, but in the end it finished in second place. So we were almost entirely wrong in our predictions for this team.
+1. We just predict the main event result based on group stage performance. It often happens that a team is in poor form in the group stage, but gets better and better in the knockout stages (just like in normal sports). With this type of teams, our predictions are difficult to be accurate. For example, Team Liquid was in the 14th spot out of all teams in the group stage, but in the end it finished at second place. So we were almost entirely wrong in our predictions for this team.
 
-2. Maybe our performance score could not completely reflects the power of each team. We will discuss it in more detail in improvement part.
+2. Our performance score/metric is not ideal and does not completely reflect the power of each team. This is discussed in more detail in the [improvements section](#discussion-of-issues-and-possible-improvements).
 
 # Sensitivity Analysis
 
 # Discussion of Issues and Possible Improvements
-From the above results, we can see that there are still a number of issues improvements can be made in the current work.
+From the above results, we can see that there is a large number of issues and improvements can be made in the current work.
 
-1. The data from the group stage matches does not fully reflect the ability of the teams, so we should also include the previous performance of each team in the database.
+1. The data from the group stage matches does not fully reflect the ability of the teams, so we should also include the previous performance of each team in the database. Getting further information about each team's performances is crucial since the whole prediction process is based on that.
+    - Here, we need to be careful with what data we choose. Just like in normal sports, the team members of e-sports teams are not always the same and transfers happen from time to time.
+    - This means that we should also take that factor into account. A possible solution would be to completely separate the individual players' performances so that each team's performance is not tied to games on which the team is always the same, but it is tied to the games that each player of the team has played. This way each team's performance could be the sum of its players' performances irregardless of whether they play on the same team or not.
+    - The above is a nice way to gather more data but does not take into account the fact that teamwork is also an important part of e-sports (how players collaborate with each-other). 
 
-2. The method of adding up all the parameters to get a performance score is too simple. Perhaps we should find a more accurate way of representing the performance of the individual teams. For example, by assigning different weights to performance indicators based on group stage ranking, so that the final score matches their actually performance.
+2. The method of adding up all the parameters to get a performance score is too simple. Perhaps we should find a more accurate way of representing the performance of the individual teams. 
+    - For example, by assigning different weights to performance indicators based on group stage ranking, so that the final score matches their actually performance.
+    - Another approach would be to follow the note of the previous bullet (that teams are not always the same) and gather more data by using player-specific knowledge.
+  
 # Conclusion
 
 # Self-Reflection
 
 ## Rongzhi Liu
-There are many things in life that cannot be accurately and simply measured by a number, such as how much he loves me. This work made me realize that it is sometimes more difficult to get the right data than it is to analyse it using Bayesian theory. In practice, there is a wide range of knowledge to be used and a variety of problems to be encountered. The practical problems often do not follow the fixed processes that we learn about on the course. For different problems, we first need to clarify the structure and requirements for solving them. If the structure is clear and precise, even a very simple model can give satisfactory results.
+
+There are many things in life that cannot be accurately and simply measured by a number, such as how much he loves me. This work made me realize that it is sometimes more difficult to get the right data than it is to analyze it using Bayesian theory. In practice, there is a wide range of knowledge to be used and a variety of problems to be encountered. The practical problems often do not follow the fixed processes that we learn about on the course. For different problems, we first need to clarify the structure and requirements for solving them. If the structure is clear and precise, even a very simple model can give satisfactory results.
+
+## Georgios Karakasidis
+
+We found many obstacles in our way when trying to implement the above models. At first, the data had no clear structure and so we had to find our own metric in order to quantify the performance. This was not as straightforward as one might think and we were on the verge of completely changing our project structure. At last, we came up with the above approach which is both simplistic yet powerful enough in order to allow us to do inference.
+
+I personally found it really interesting how a simple transformation of data can affect the results in such a way. In addition, Bayesian Analysis managed to output sensible and reasonable results even with these simplistic representations and the very low amount of data which is something very noteworthy.
+
 
 # Appendix
 
@@ -454,4 +469,5 @@ generated quantities {
     ypred[j] = normal_rng (theta[j] , sigma);
 }
 ```
+
 # References
