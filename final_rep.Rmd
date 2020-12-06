@@ -12,6 +12,7 @@ output:
     toc_depth: 2
     number_sections: true
     highlight: tango
+    fig_caption: false
 editor_options: 
   chunk_output_type: console
 bibliography: references.bibtex
@@ -180,17 +181,21 @@ Firstly, we built a separate model which could reflect each team performance sep
 ### Using the model
 You may find the stan implementation of the separate model in the [appendix (Stan Code)](#separate-model-impementation). Now in order to run the separate model on our dataset we are using the following R code:
 
-```{r, results='hide', message = FALSE, warning=FALSE}
+```{r,results='hide',message=FALSE,warning=FALSE}
 data <- read.csv(file = './data/match_performance_group_region.csv')  # read dataset
 
 sm <- rstan::stan_model(file = './model/Separate.stan')  # load model
 stan_data <- list(y = data,  # team performances
                   N = nrow(data),  # number of matches of each team
                   J = ncol(data))  # number of teams
-model_sm <- rstan::sampling(sm, data = stan_data) # load data to our model and compile
+model_sm <- rstan::sampling(sm, data = stan_data,
+                            chains=5
+                            ) # load data to our model and compile
 
 draws_sm <- as.data.frame(model_sm)  # convert to data frame
 ```
+
+From the above code you can see that we used the default configurations for compiling stan models with the exception of the `chains` parameter which is set to $5$ instead of the default $4$. This means that we are running $5$ chains and for each chain we do $2000$ iterations and we prune the first $1000$ (warm-up iterations) since these are the default values.
 
 ## Hierarchical Model
 
@@ -201,35 +206,55 @@ Now, in order to build the models, we are going to use the same hierarchical str
 ### Using the Model
 You may find the stan implementation of the hierarchical model in the [appendix (Stan Code)](#hierarchical-model-impementation). Here, for each region, we run the hierarchical model on its data set points (the matches of the teams of that region). For example, in the Europe region, we have the team Alliance, CHAOS, OG, NiP, Secret, Liquid to form the data set. 
 
-```{r,results='hide',message=FALSE,warning=FALSE}
-hm <- rstan::stan_model(file = './model/Region-Hierarchical.stan')
-Europe_data <- list(y = data[,1:6],
-                  N = nrow(data[,1:6]),
-                  J = ncol(data[,1:6]))
-model_Europe_hm <- rstan::sampling(hm, data = Europe_data)
-model_Europe_hm
-draws_Europe_hm <- as.data.frame(model_Europe_hm)
-```
-
-# Convergence Diagnostics
-
-
-## Separate Model
-
-
-## Hierarchical Model
-
-With the above weakly informative priors we managed to reach converge after compiling 5 stan models (one for each region) as follows (only for the european region):
-
-```{r,results='hide',message=FALSE,warning=FALSE}
+```r
 hm <- rstan::stan_model(file = './model/Region-Hierarchical.stan')
 Europe_data <- list(y = data[,1:6],  # the observed performances
                     N = nrow(data[,1:6]),  # number of teams
                     J = ncol(data[,1:6]))  # number of matches
 # compile the model with a standard seed
-model_Europe_hm <- rstan::sampling(hm, data = Europe_data, seed=42)
+model_Europe_hm <- rstan::sampling(hm, data = Europe_data, 
+                                   chains=5, seed=42)
 draws_Europe_hm <- as.data.frame(model_Europe_hm)
 ```
+
+Again, you can see that we used the default parameters of stan and that is true for every hierarchical model of every region. 
+
+# Convergence Diagnostics
+
+Our basic method of checking for convergence was using the $\hat{R}$ diagnostic. For the implementation we used rstan's [@rstan] Rhat function which compares the between and the withing-chain estimates of the model parameters and other univariate quantities of interest. 
+
+An $\hat{R}$ value larger than $1$ means that the chains have not mixed well and that they don't converge to a common distribution (so the between and within-chain estimates don't agree). On the other hand, values really close to $1$ are good indicators of convergence of the chains. 
+
+## $\hat{R}$ Results
+
+
+### Separate Model
+
+For the separate model we ended up with and $\hat{R}$ value of 1 for all of the parameters (these include 18 $\mu$ parameters and 18 $\sigma$ parameters, one for each team). This implies that our chains converge to a common distribution which is what we aimed for. 
+
+
+The $\hat{R}$ plot below shows the values that $\hat{R}$ has taken for the separate model:
+
+![separate_result](./pictures/sep_model_rhats.png)
+
+
+
+As you can see, the largest Rhat value is still smaller than $1.002$. In addition, in the figure below you can also see how the values of the posterior samples for $\theta_1$ and $\theta_2$ are evolving (after removing the warm-up iterations).
+
+![separate_result](./pictures/sep_model_convergence_of2means.png)
+
+
+### Hierarchical Model
+
+With the above weakly informative priors we managed to reach converge after compiling 5 stan models (one for each region). The $\hat{R}$ values have a similar distribution as above. In particular, all of the $\hat{R}$ values (rounded to 3 decimals) had a value of 1 which means that we reached convergence again. 
+
+Here, it is worth mentioning that the North American region has only one team participating the TI which means that only one team defines a whole region. Ideally we would need more information about the region before performing the modeling.
+
+
+## Effective Sample Size
+
+Since the number of posterior parameters is too large, we cannot include the effective sample size for each one of them. In general, an effective sample size (ESS) greater than 100 (per chain) is considered good. In our case, we used the Bulk and Tail ESSs and we got values close to $5000$ for each parameters for both the separate model and the hierarchical ones. This is a good indicator that our posterior estimates are reliable.
+
 
 # Posterior Predictive Checks
 We compare the MCMC results with the performance data which we used.

@@ -11,3 +11,78 @@ library(rstan)
 ```
 
 
+```{r}
+#return the win_rate of team_num_1
+predict_result_sm <- function(team_num_1, team_num_2) {
+  ypred_1 <- draws_sm[, 36 + team_num_1]
+  ypred_2 <- draws_sm[, 36 + team_num_2]
+  win_rate_1 = {
+  }
+  for (i in 1:length(ypred_1)) {
+    win_rate_1[i] = ypred_1[i] / (ypred_1[i] + ypred_2[i])
+  }
+  
+  mean_rate_1 <- (mean(win_rate_1))
+  
+  if (mean_rate_1 >= 0.5)
+    return(team_num_1)
+  else
+    return(team_num_2)
+}
+
+
+
+#return the win team
+compare <- function(team_name_1,team_name_2){
+  team_num_1 <- which(colnames(data) == team_name_1)
+  team_num_2 <- which(colnames(data) == team_name_2)
+  predict <- predict_result_sm(team_num_1,team_num_2)
+  if(predict == team_num_1)
+    return(team_name_1)
+  else 
+    return(team_name_2)
+}
+```
+
+
+
+```{r}
+#read the match performance of each team in group stage
+#have make the data to look like factory data
+data <- read.csv(file = './data/match_performance_group_region.csv')
+```
+
+## Separate model
+
+```{r}
+sm <- rstan::stan_model(file = './model/Separate.stan')
+
+stan_data <- list(y = data,
+                  N = nrow(data),
+                  J = ncol(data),
+                  y_new = as.vector(as.matrix(data)))
+
+model_sm <- rstan::sampling(sm, data = stan_data, 
+                            chains=5, # algorithm='HMC',
+                            seed = 42)
+draws_sm <- as.data.frame(model_sm)
+```
+
+```{r, fig.height=6, fig.width=10}
+traceplot(model_sm, pars = c("mu[1]", "mu[2]"), inc_warmup = F, nrow = 2)
+```
+```{r}
+model_sm
+```
+
+
+## Hierarchical models
+
+
+
+
+## Model Comparison
+
+
+
+
