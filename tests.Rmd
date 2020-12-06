@@ -1,0 +1,13 @@
+---
+title: "Tests"
+author: "Anonymous"
+output: 
+  pdf_document
+---
+
+```{r}
+library(loo)
+library(rstan)
+```
+
+
