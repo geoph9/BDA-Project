@@ -13,7 +13,7 @@ parameters {
 
 model {
   // priors
-  mu_p ~ normal (0, 100);
+  mu_p ~ normal (0, 10);
   sigma_p ~ inv_chi_square (0.1);
   
   for (j in 1:J){
