@@ -174,7 +174,9 @@ In the representations $\theta_{\mu}$ and $\theta_{\sigma}$ are the hyper-priors
 
 ## Separate Model
 
-Firstly, we built a separate model which could reflect each team performance separately. The idea behind the hierarchical model has already been discussed and so we are going to go straight to the implementation.
+Firstly, we built a separate model which could reflect each team performance separately. The idea behind the separate model is that all teams are unique and there is nothing common with them. This contradicts with our hypothesis that teams from different regions tend to have different gameplays and strategies (e.g. teams from region $X$ might follow a more offensive gameplay). 
+
+In the separate model, each team is going to have their own mean and variance. This means that, when we later reach the prediction stage, we cannot make any predictions about unseen teams (this is not a problem in our case) and we can also not extract any generic information about the gameplay and the strategies.
 
 
 
@@ -199,7 +201,7 @@ From the above code you can see that we used the default configurations for comp
 
 ## Hierarchical Model
 
-The goal here is to create a hierarchical model for the teams of each region. As we have already mentioned above, we can divide the 18 teams to six regions (Europe, China, CIS, Southeast Asia, North America, South America).
+The goal here is to create a hierarchical model for the teams of each region. As we have already mentioned above, we can divide the 18 teams to six regions (Europe, China, CIS, Southeast Asia, North America, South America). By doing that we get different posterior samples for the teams of each region and this can later help us define how different is the gameplay and the strategies used in each region. 
 
 Now, in order to build the models, we are going to use the same hierarchical structure for all different regions. This way we are sure that there is no external bias. 
 
@@ -270,7 +272,6 @@ The prediction workflow for a series match between team $X$ and $Y$ is the follo
 1. A normal series is a two out of three game series. But here we only compare each team's expected performance scores to predict who is more likely to win in the series.
 
 2. The $ypred$ in the stan code represents the predictive performance score of each team. So, by comparing the $ypred$ of team $X$ and $Y$, we could get the win possibility. The function `predict_result_sm` below will do this:
-
 ```{r}
 predict_result_sm <- function(team_num_1, team_num_2) {
   ypred_1 <- draws_sm[, 36 + team_num_1]
@@ -288,7 +289,7 @@ predict_result_sm <- function(team_num_1, team_num_2) {
 
 3. If the win possibility of team $X$ is above 0.5, we will say that the team $X$ is more likely to win in this game series.
 
-Here is a example to predict which team will win between PSG.LGD and VP.
+Here is an example to predict which team will win between PSG.LGD and VP.
 ```{r}
 #return the win team
 compare <- function(team_name_1,team_name_2){
@@ -311,9 +312,14 @@ Predictive Performance of the separate model:
 
 ![separate_result](./pictures/separate_result.png)
 
+From the above image we can see that we reached an accuracy of $45.5\%$ with the separate model.
+
+
 Predictive Performance of the hierarchical model:  
 
 ![hierarchical_result](./pictures/hierarchical_result.png)
+
+Here we can see that the accuracy is almost $41\%$ which is lower than the separate model.
 
 ## Analysis
 As you can see, there is no significant difference in the results between the separate model and the hierarchical model. This proves that regional factors do not play a significant role. In other words, there are no significant differences between the teams in the different regions.
@@ -326,7 +332,44 @@ It is also worth mentioning that the prediction accuracy is not very high. Possi
 
 # Prior Sensitivity Analysis
 
-As mentioned (above)[#choice-of-priors], trying out different weakly informative priors yielded similar results. So, in order to avoid clutter we chose not to include more results since the figures are almost the same (with the exception of maximum 1 result).
+As mentioned [above](#choice-of-priors), trying out different weakly informative priors yielded similar results and the models converged in all cases. So, in order to avoid clutter we chose not to include more results since the output figures are almost the same. 
+
+Below we are going to mention the another choice of priors which is considered more informative. 
+
+## Separate Model
+
+Here, we chose to use the mean performance score and its standard deviation from the gathered data as our prior for the mean and sigma of the separate model, respectively.
+
+Mathematicaly this can be noted as:
+$$\mu_j \sim N(\mu_0, \sigma_0)$$
+
+where $\mu_0$ denotes the mean performance score for the gathered data, and $\sigma_0$ stands for standard deviation of the data.
+
+The standard deviation for the sampling is now 
+$$
+\sigma_j \sim inv-\chi^2(\sigma_{new})
+$$
+where $\sigma_{new}$ is drawn from $\mu_0 - N(\mu_0, \sigma_0)$.
+
+The above configuration resulted in an accuracy of $52.5\%$ (correctly predicted 12 out of 22 matches).
+
+
+## Hierarchical Model
+For the hierarchical model, we used the following mathematical notation:
+
+$$
+\theta_{\mu} \sim N(\mu_0, \sigma_0)
+$$
+
+$$
+\theta_{\sigma} \sim inv-\chi^2(\sigma_{new})
+$$
+where the $\sigma_{new}$ was drawn in the same way as in the case of the separate model. 
+
+
+The above configuration resulted in an accuracy of $52.5\%$ (correctly predicted 12 out of 22 matches) which is the same as with the separate model.
+
+
 
 # Discussion of Issues and Possible Improvements
 From the above results, we can see that there is a large number of issues and improvements can be made in the current work.
@@ -341,6 +384,14 @@ From the above results, we can see that there is a large number of issues and im
     - Another approach would be to follow the note of the previous bullet (that teams are not always the same) and gather more data by using player-specific knowledge.
   
 # Conclusion
+
+Above we described a way to predict future statistics about Dota 2 matches by using a very small dataset. By using Bayesian Analysis we managed to extract predictions about match outcomes and compare the gameplay of the teams of each region. 
+
+The results may not be ideal but there is room for improvement and we did not reach a dead end. In the previous paragraph we mentioned what steps could lead us to better results and how to overcome the low amount of prior information. By following these steps, we believe that we can achieve much greater accuracy and better models overall.
+
+In addition, we saw how separate and hierarchical models are compared and discussed their strengths and weaknesses. These models helped us predict the results of the TI and the latter can also help us extract gameplay specific information. For example, by destructuring the performance scores we could see that higher performance scores mostly correspond to offensive teams and so we could use that assumption in order to predict gameplay styles for each region. We decided not to include the above since it was based on a big assumption and our data transformation could not guarantee that this holds (large performance values match to offensive teams). 
+
+In general, the above report includes a basic and straightforward approach to perform Bayesian Analysis on multidimensional data by transforming the data and using team performances as "quality" indicators. Since our prior information concluded of a very small number of matches for each team, we can say that the results are sensible while there is still room for improvement both in our data and model choices.
 
 # Self-Reflection
 
