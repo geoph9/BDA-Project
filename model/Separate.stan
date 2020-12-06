@@ -21,9 +21,15 @@ model {
 }
 
 generated quantities {
-  vector [J] ypred;
-  // Compute predictive performance for each team
+  vector[J] ypred;
+  vector[J*N] log_lik;
+  // Compute predictive distribution (not needed here)
   for (j in 1:J)
-    ypred[j] = normal_rng (mu [j] , sigma [j]);
+    ypred[j] = normal_rng(mu[j], sigma[j]);
+  for (j in 1:J){
+    for (n in 1:N ) {
+      // n+(j-1)*N gives values between 1 and J*N
+      log_lik[n + (j-1)*N] = normal_lpdf(y[n, j] | mu[j], sigma[j]);
+    }
+  }
 }
-

@@ -2,8 +2,8 @@
 title: "Bayesian Analysis of Esports Teams' Perfomances"
 subtitle: "Aalto University"
 author: 
-- Ekaterina Marchenko \and
-- Georgios Karakasidis \and
+- Ekaterina Marchenko
+- Georgios Karakasidis
 - Rongzhi Liu
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output: 
@@ -27,6 +27,7 @@ library(tidyverse)
 library(rstan)
 library(knitr)
 library(dplyr)
+library(loo)
 ```
 
 # Introduction
@@ -118,7 +119,7 @@ As you can see, a rather simplistic approach was used to combine the data. As a 
 
 For more information about the implementation you may check the [data transformation appendix](#data-transformation). An important note here is that, for each match, the $score\_gap$, $exp\_gap$ and $gold\_advantage$ columns for the Dire team are multiplied by $-1$ so that they will be positive in case the Dire has positive statistics (and negative otherwise). 
 
-# Problem Solving
+# Model Architectures
 
 By preprocessing our data we managed to get a single scoring measurement for each team. Our next step is to build a model on top of these transformed data and try to predict/sample future scores (future performances). Our approach invloved two models which are going to be described below. For the implementation we used the RStan [@rstan] package of R.
 
@@ -133,9 +134,9 @@ In the case of separate models, we assume that each team has its own model and s
 
 ## Choice of Priors
 
-Our first trials consisted of trivial priors which contain no problem-specific information, meaning that we did not use any current knowledge while picking them. The reason we chose these weakly informative priors is because we did not want to use current knowledge since it would skew our results towards a certain assumption (e.g. that the teams of region $X$ perform better) which would not hold in the general case.
+Our first trials consisted of trivial priors which contain no problem-specific information, meaning that we did not use any current knowledge while picking them. The reason we chose these weakly informative priors is because we did not want to use current knowledge since it would skew our results towards a certain assumption which would not hold in the general case.
 
-While tuning these priors we noticed that the results and the output diagnostics were mostly the same. This made us stay with the choices above since these weakly informative priors showed some stability. 
+While tuning these weakly informative priors we noticed that the results and the output diagnostics were mostly the same. This made us stay with the choices above since these weakly informative priors showed some stability. In the [Prior Sensitivity Analysis section]($prior-sensitivity-analysis) we are also going to discuss on how using informative priors affects the results.
 
 In our problem we represent our observed performances by $y_{ij}$, where $i=1..N$ denotes the current match and $j$ corresponds to the team of a certain region. So $y_{ij}$ is the performance score of team j in game i. We can now mathematically express the separate model as:
 $$
@@ -257,16 +258,113 @@ Here, it is worth mentioning that the North American region has only one team pa
 
 Since the number of posterior parameters is too large, we cannot include the effective sample size for each one of them. In general, an effective sample size (ESS) greater than 100 (per chain) is considered good. In our case, we used the Bulk and Tail ESSs and we got values close to $5000$ for each parameters for both the separate model and the hierarchical ones. This is a good indicator that our posterior estimates are reliable.
 
+## HMC Diagnostics
 
-# Posterior Predictive Checks
-We compare the MCMC results with the performance data which we used.
+While running the separate model, there were no divergent transitions after the warm-up, meaning that the validity concern is not broken. Hence, it was unnessary to adjust the `adapt_delta` control parameter, and in the model, the standard $0.8$ target Metropolis acceptance rate was used. Also, there were no problems with the maximum `treedepth`. So, it is possible to say that the model is also efficient.
+
+Speaking about the hierarchical model, the number of divergent transitions after the warm-up was relatively small (all values were in a range from $0$ to $20$). To fix this, we tried to use the `adapt_delta` parameter. However, even with the acceptance rate close to $1$, the divergent transitions were still present. This means that there are problems with validity but as the number is close to zero, it can be considered insignificant.
 
 
 # Model Comparison
 
-# Predictive Performance Assessment
+For the hierarchical model we can get the PSIS-LOO elpd values with the following R code:
+```{r,results='hide',warning='hide',message='hide'}
+sm_log_lik <- extract_log_lik(model_sm, merge_chains = FALSE)
+sm_r_eff <- relative_eff(exp(sm_log_lik), cores = 2)
+sm_loo <- loo(sm_log_lik, r_eff = sm_r_eff, cores = 2)
+```
 
-## Predictive Performance
+```{r}
+sm_loo$estimates
+```
+
+Then by using a for loop we can also get the PSIS-LOO elpd values for each hierarchical model as follows:
+```r
+models_list <- list(model_Europe_hm, model_China_hm, model_CIS_hm, 
+                    model_SAsia_hm, model_NA_hm)
+for (i in 1: length(models_list)) {
+  # k values are high for 7% of data
+  lls <- extract_log_lik(models_list[[i]], merge_chains = FALSE)
+  m_reff <- relative_eff(exp(lls), cores = 2)
+  m_loo <- loo(lls, r_eff = m_reff, cores = 2)
+  cat("Model", i, "loo:")
+  print(m_loo)
+}
+```
+
+In order to avoid noise, we are going to show the output values in a table:
+
+| Region/Model  | PSIS-LOO elpd | SE  |
+|---------------|---------------|-----|
+| Europe        | -108.4        | 7.6 |
+| China         | -66.7         | 5.4 |
+| CIS           | -38.1         | 2.2 |
+| South Asia    | -66.3         | 3.9 |
+| North America | -42.3         | 2.7 |
+
+Here we can see that the highest PSIS-LOO value is that of the the hierarchical model of the CIS region. In general, the hierarchical model is associated with better elpd values.
+
+In order to assess the above, we are going to use the corresponding $\hat{k}$ values for each model.
+
+## Reliability
+
+For the separate model, the $\hat{k}$ values can be visualized as follows:
+
+```{r}
+plot(sm_loo, diagnostic = c("k", "n_eff"),
+      label_points = FALSE,main = "PSIS diagnostics for the Separate Model" )
+```
+
+
+while for the hierarchical models we have the following diagnostics (for each region):
+
+```r
+models_list <- list(model_Europe_hm, model_China_hm, 
+                    model_CIS_hm, model_SAsia_hm, model_NA_hm)
+model_names <- list("Europe", "China", "CIS", "South Asia", "North America")
+par(mfrow = c(2, 3))
+for (i in 1: length(models_list)) {
+  lls <- extract_log_lik(models_list[[i]], merge_chains = FALSE)
+  m_reff <- relative_eff(exp(lls), cores = 2)
+  m_loo <- loo(lls, r_eff = m_reff, cores = 2)
+  plot(m_loo, diagnostic = c("k", "n_eff"),
+      label_points = FALSE,main = paste("PSIS diagnostics - ", model_names[[i]]) )
+}
+```
+
+![separate_result](./pictures/hierarchical_kvals.png)
+
+As you can see, the separate model has a lot more $\hat{k}$ values that are above $0.5$ which is an indicator that the results cannot be trusted. On the other hand, the $\hat{k}$ values for the hierarchical models are all below $0.5$ which means that the result is reliable.
+
+
+## Ranking the Models
+
+Here we are going to compare the separate model with the hierarchical one. An important note here is that the hierarchical model architecture contains many hierarchical models for each region but, all of these models are dependent with each other and so we treat them as one. 
+
+The above fact results in an issue when comparing the models. The problem here is that since the hierarchical models are region-specific then there is a non-fixed amount of data points (matches) for each of them. This means that by using the elpd values above, we are ignoring the facts that the two models (separate and hierarchical) have seen different kind of observations.
+
+Below, we are going to present the final model ranking but keep in mind that the result in not $100\%$ trustworthy due to the fact mentioned above (the difference columsn have to do with the difference when compared to the top-ranked model):
+
+| Ranking | Model                      | ELPD       | ELPD Difference | SE Difference |
+|---------|----------------------------|------------|-----------------|---------------|
+| 1.      | CIS-Hierarchical           | -38.1      | 0.0             | 0.0           |
+| 2.      | North America-Hierarchical | -42.3      | 4.2             | 0.5           |
+| 3.      | South Asia-Hierarchical    | -66.3      | 28.2            | 1.7           |
+| 4.      | Chinese-Hierarchical       | -66.7      | 28.6            | 3.2           |
+| 5.      | Europe-Hierarchical        | -108.4     | 70.3            | 5.4           |
+| 6.      | Separate                   | -346.38691 | 307.9           | 10.56         |
+
+
+Here, we can see that the hierarchical models that had to do with regions for which we have a small number of teams, are ranked higher, while regions such as Europe and China that have the biggest percentage of teams are ranked lower. 
+
+This shows the relationship between the number of data points and the elpd values and this is also an indicator that the above results cannot be used in order to compare the hierarchical model with the separate model. Instead, we could maybe use the sum of the elpd values of the hierachical models as a representative value. If we did that we would end up with a PSIS-LOO elpd value of $-321.8$. This modified elpd value is still better than the value for the separate model and we could use that as a better indicator for comparing the two model architectures.
+
+But still, in the previous subsection we saw that the $\hat{k}$ values for the separate model were rather high which means that the above ranking is not completely reliable. In the next section we are going to discuss the performance of the models on new data.
+
+
+# Posterior Predictive Checks
+
+## Extracting Results
 The prediction workflow for a series match between team $X$ and $Y$ is the following: 
 
 1. A normal series is a two out of three game series. But here we only compare each team's expected performance scores to predict who is more likely to win in the series.
@@ -324,23 +422,26 @@ Here we can see that the accuracy is almost $41\%$ which is lower than the separ
 ## Analysis
 As you can see, there is no significant difference in the results between the separate model and the hierarchical model. This proves that regional factors do not play a significant role. In other words, there are no significant differences between the teams in the different regions.
 
+Above, we can see that the models fail to predict the results for Team Liquid most of the time. However, this can be explained since the performance of the team during TI9 was discussed a lot. The team changed its roster two months before the tournament which is not a common situation. Therefore, during the group stage, the performance was unstable but during the play-offs it improved in times.
+
+Also, the bad results were shown for the first round of the lower bracket. It is known as a “roulette” since these matches are completed in a best-of-1 format meaning that they consist only of 1 game whereas other matches are either best-of-3 or best-of-5. 
+
+
 It is also worth mentioning that the prediction accuracy is not very high. Possible reasons are the following:
 
-1. We just predict the main event result based on group stage performance. It often happens that a team is in poor form in the group stage, but gets better and better in the knockout stages (just like in normal sports). With this type of teams, our predictions are difficult to be accurate. For example, Team Liquid was in the 14th spot out of all teams in the group stage, but in the end it finished at second place. So we were almost entirely wrong in our predictions for this team.
+1. We just predict the main event result based on group stage performance. It often happens that a team is in poor form in the group stage, but gets better and better in the knockout stages (just like in normal sports). With this type of teams, our predictions are difficult to be accurate. For example, as mentioned above, Team Liquid was in the 14th spot out of all teams in the group stage, but in the end it finished at second place. So we were almost entirely wrong in our predictions for this team.
 
 2. Our performance score/metric is not ideal and does not completely reflect the power of each team. This is discussed in more detail in the [improvements section](#discussion-of-issues-and-possible-improvements).
 
 # Prior Sensitivity Analysis
 
-As mentioned [above](#choice-of-priors), trying out different weakly informative priors yielded similar results and the models converged in all cases. So, in order to avoid clutter we chose not to include more results since the output figures are almost the same. 
-
-Below we are going to mention the another choice of priors which is considered more informative. 
+As mentioned [above](#choice-of-priors), trying out different weakly informative priors yielded similar results and the models converged in all cases. Below we are going to mention the results for another choice of priors which is considered more informative. 
 
 ## Separate Model
 
 Here, we chose to use the mean performance score and its standard deviation from the gathered data as our prior for the mean and sigma of the separate model, respectively.
 
-Mathematicaly this can be noted as:
+Mathematicaly this can be denoted as:
 $$\mu_j \sim N(\mu_0, \sigma_0)$$
 
 where $\mu_0$ denotes the mean performance score for the gathered data, and $\sigma_0$ stands for standard deviation of the data.
@@ -374,7 +475,7 @@ The above configuration resulted in an accuracy of $52.5\%$ (correctly predicted
 # Discussion of Issues and Possible Improvements
 From the above results, we can see that there is a large number of issues and improvements can be made in the current work.
 
-1. The data from the group stage matches does not fully reflect the ability of the teams, so we should also include the previous performance of each team in the database. Getting further information about each team's performances is crucial since the whole prediction process is based on that.
+1. The data from the group stage matches does not fully reflect the ability of the teams (like in the Team Liquid example), so we should also include the previous performance of each team in the database. Getting further information about each team's performances is crucial since the whole prediction process is based on that.
     - Here, we need to be careful with what data we choose. Just like in normal sports, the team members of e-sports teams are not always the same and transfers happen from time to time.
     - This means that we should also take that factor into account. A possible solution would be to completely separate the individual players' performances so that each team's performance is not tied to games on which the team is always the same, but it is tied to the games that each player of the team has played. This way each team's performance could be the sum of its players' performances irregardless of whether they play on the same team or not.
     - The above is a nice way to gather more data but does not take into account the fact that teamwork is also an important part of e-sports (how players collaborate with each-other). 
@@ -404,6 +505,14 @@ There are many things in life that cannot be accurately and simply measured by a
 We found many obstacles in our way when trying to implement the above models. At first, the data had no clear structure and so we had to find our own metric in order to quantify the performance. This was not as straightforward as one might think and we were on the verge of completely changing our project structure. At last, we came up with the above approach which is both simplistic yet powerful enough in order to allow us to do inference.
 
 I personally found it really interesting how a simple transformation of data can affect the results in such a way. In addition, Bayesian Analysis managed to output sensible and reasonable results even with these simplistic representations and the very low amount of data which is something very noteworthy.
+
+## Ekaterina Marchenko
+
+While working on the project, I was fascinated by the Bayesian approach's possibilities for data analysis. Taking a real-life problem was exciting and challenging, meaning that right from the start, we debated a lot on how the analysis can be made and whether it can be done in general with the data we have. It was great to realise that we can do small-scope research ourselves investigating the possibilities of the Bayesian approach. 
+
+It was especially interesting to observe how the results adapt to the small changes we made. How will the accuracy change with different priors? What will happen with adjusting the sampling parameters? Little details can influence the whole analysis, and it is essential to pay attention to each of them.
+
+Finally, it is great to really understand and learn the alternative approach to the frequentist one since the analysis shows how the Bayesian approach can work with a small amount of data. In many cases, it is nearly impossible to retrieve a big data sample, and now I realise that it can be solved just by using another approach, and it is great.
 
 
 # Appendix

@@ -63,7 +63,7 @@ stan_data <- list(y = data,
                   y_new = as.vector(as.matrix(data)))
 
 model_sm <- rstan::sampling(sm, data = stan_data, 
-                            chains=5, # algorithm='HMC',
+                            chains=5, #algorithm='HMC',
                             seed = 42)
 draws_sm <- as.data.frame(model_sm)
 ```
@@ -72,16 +72,166 @@ draws_sm <- as.data.frame(model_sm)
 traceplot(model_sm, pars = c("mu[1]", "mu[2]"), inc_warmup = F, nrow = 2)
 ```
 ```{r}
-model_sm
+plot(model_sm, plotfun="rhat", bins=10)
 ```
 
 
+```{r}
+model_sm
+```
+```{r}
+monitor(model_sm)
+```
+
+
+
 ## Hierarchical models
+
+```{r}
+### HIERARCHICAL PART
+hm <- rstan::stan_model(file = './model/Region-Hierarchical.stan')
+Europe_data <- list(y = data[,1:6],
+                    N = nrow(data[,1:6]),
+                    J = ncol(data[,1:6]))
+model_Europe_hm <- rstan::sampling(hm, data = Europe_data, seed=42)
+model_Europe_hm
+draws_Europe_hm <- as.data.frame(model_Europe_hm)
+```
+
+```{r}
+China_data <- list(y = data[,7:10],
+                   N = nrow(data[,7:10]),
+                   J = ncol(data[,7:10]))
+model_China_hm <- rstan::sampling(hm, data = China_data, seed=42)
+model_China_hm
+draws_China_hm <- as.data.frame(model_China_hm)
+```
+
+```{r}
+
+CIS_data <- list(y = data[,11:12],
+                 N = nrow(data[,11:12]),
+                 J = ncol(data[,11:12]))
+model_CIS_hm <- rstan::sampling(hm, data = CIS_data, seed=42, iter=6000, 
+                                control=list(adapt_delta=0.95, max_treedepth=10))
+model_CIS_hm
+draws_CIS_hm <- as.data.frame(model_CIS_hm)
+```
+
+```{r}
+
+
+SAsia_data <- list(y = data[,13:15],
+                   N = nrow(data[,13:15]),
+                   J = ncol(data[,13:15]))
+model_SAsia_hm <- rstan::sampling(hm, data = SAsia_data, seed=42)
+model_SAsia_hm
+draws_SAsia_hm <- as.data.frame(model_SAsia_hm)
+```
+
+```{r}
+
+NA_data <- list(y = data[,16:17],
+                N = nrow(data[,16:17]),
+                J = ncol(data[,16:17]))
+model_NA_hm <- rstan::sampling(hm, data = NA_data, seed=42, iter=6000, control=list(adapt_delta=0.95,
+                                                                                    max_treedepth=10))
+model_NA_hm
+draws_NA_hm <- as.data.frame(model_NA_hm)
+
+#only one south America team, use the separate pred to represent
+draws_SA_hm <- draws_sm$`ypred[18]`
+```
+
+```{r}
+
+draws_hm <- cbind(draws_Europe_hm[,10:15],draws_China_hm[,8:11],
+                  draws_CIS_hm[,6:7],draws_SAsia_hm[,7:9],draws_NA_hm[,6:7],draws_SA_hm)
+```
+
+```{r, figures-side, fig.show="hold", out.width="50%"}
+# par(mfrow=c(3,2))
+library(tidyverse)
+library(gridExtra)
+library(grid)
+# par(mar = c(4, 4, .1, .1))
+models_list <- list(model_Europe_hm, model_China_hm, model_CIS_hm, model_SAsia_hm, model_NA_hm)
+plot(model_Europe_hm,  plotfun="rhat", bins=10) -> p1
+plot(model_China_hm,  plotfun="rhat", bins=10) -> p2
+plot(model_CIS_hm,  plotfun="rhat", bins=10) -> p3
+plot(model_SAsia_hm,  plotfun="rhat", bins=10) -> p4
+plot(model_NA_hm,  plotfun="rhat", bins=10) -> p5
+
+grid.arrange(p1, p2, p3, p4, p5, ncol = 2, nrow=3)
+```
 
 
 
 
 ## Model Comparison
+```{r}
+
+draws_sm <- as.data.frame(model_sm)
+sm_est = as.data.frame(rstan::extract(model_sm))
+# k values are high for 7% of data
+sm_log_lik <- extract_log_lik(model_sm, merge_chains = FALSE)
+sm_r_eff <- relative_eff(exp(sm_log_lik), cores = 2)
+sm_loo <- loo(sm_log_lik, r_eff = sm_r_eff, cores = 2)
+```
+
+
+```{r}
+sm_loo$estimates
+```
+
+
+```{r}
+models_list <- list(model_Europe_hm, model_China_hm, model_CIS_hm, model_SAsia_hm, model_NA_hm)
+for (i in 1: length(models_list)) {
+  # k values are high for 7% of data
+  lls <- extract_log_lik(models_list[[i]], merge_chains = FALSE)
+  m_reff <- relative_eff(exp(lls), cores = 2)
+  m_loo <- loo(lls, r_eff = m_reff, cores = 2)
+  cat("Model", i, "loo:")
+  print(m_loo)
+}
+```
+
+
+```{r}
+models_list <- list(model_Europe_hm, model_China_hm, model_CIS_hm, model_SAsia_hm, model_NA_hm)
+model_names <- list("Europe", "China", "CIS", "South Asia", "North America")
+par(mfrow = c(2, 3))
+for (i in 1: length(models_list)) {
+  # k values are high for 7% of data
+  lls <- extract_log_lik(models_list[[i]], merge_chains = FALSE)
+  m_reff <- relative_eff(exp(lls), cores = 2)
+  m_loo <- loo(lls, r_eff = m_reff, cores = 2)
+  plot(m_loo, diagnostic = c("k", "n_eff"),
+      label_points = FALSE,main = paste("PSIS diagnostics - ", model_names[[i]]) )
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
