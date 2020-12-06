@@ -139,20 +139,9 @@ In the case of separate models, we assume that each team has its own model and s
 
 Our first trials consisted of trivial priors which contains no problem-specific information, meaning that we did not use any current knowledge while picking them. The reason we chose these weakly informative priors is because we did not want to use current knowledge since it would skew our results towards a certain assumption (e.g. that the teams of region $X$ perform better) which would not hold in the general case.
 
-
-For the hierarchical model these weakly informative priors can be mathematically expressed as follows:
-
-- $\theta_{\mu} \sim N(0, 100)$
-- $\theta_{\sigma} \sim inv-\chi^2(0.1)$
-- $\theta_j \sim N(\theta_{\mu}, \theta_{\sigma})$ (separate for each model/region)
-- $\sigma \sim inv-\chi^2(0.1)$ (same for all models/regions)
-
-
-In the representations $\theta_{\mu}$ and $\theta_{\sigma}$ are the hyper-priors of the means (and the means are denoted as $\theta_j$ for each team).
-
 While tuning these priors we noticed that the results and the output diagnositics were mostly the same. This made us stay with the choices above since these weakly informative priors showed some stability. 
 
-In our problem we represent our observed performances by $y_{ij}$, where $i=1..N$ denotes the current match and $j$ corresponds to the team of a certain region. We can now mathematically express the separate model as:
+In our problem we represent our observed performances by $y_{ij}$, where $i=1..N$ denotes the current match and $j$ corresponds to the team of a certain region. So $y_{ij}$ is the performance score of team j in game i. We can now mathematically express the separate model as:
 $$
 y_{ij} \sim N(\mu_j, \sigma_j)
 $$
@@ -162,6 +151,22 @@ $$
 $$
 \sigma_j \sim Inv-\chi^2(0.1)
 $$
+
+
+For the hierarchical model these weakly informative priors can be mathematically expressed as follows:
+
+$$
+y_{ij} \sim N(\theta_j, \sigma)
+$$
+
+$$\theta_{\mu} \sim N(0, 100)$$
+$$\theta_{\sigma} \sim inv-\chi^2(0.1)$$
+$$\theta_j \sim N(\theta_{\mu}, \theta_{\sigma})$$
+$$\sigma \sim inv-\chi^2(0.1)$$
+
+
+In the representations $\theta_{\mu}$ and $\theta_{\sigma}$ are the hyper-priors of the means (and the means are denoted as $\theta_j$ for each team).
+
 
 ## Separate Model
 
@@ -186,13 +191,6 @@ draws_Europe_hm <- as.data.frame(model_Europe_hm)
 
 
 
-### Choice of Priors
-We use weaker prior distribution as our priors. 
-$$y_{ij}\  \backsim \ N( \mu_j, \ \sigma_j  )\\$$
-$y_{ij}$ is the performance score of team j in game i.
-
-$$\mu_j\  \backsim \ N(0,10)\\$$
-$$\sigma_j\  \backsim \ Inv- \chi^2(0.1)$$
 
 ### Stan code
 You could find the stan code in [appendix](#stan-code).
