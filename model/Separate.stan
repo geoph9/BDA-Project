@@ -26,3 +26,4 @@ generated quantities {
   for (j in 1:J)
     ypred[j] = normal_rng (mu [j] , sigma [j]);
 }
+

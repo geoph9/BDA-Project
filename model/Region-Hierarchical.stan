@@ -32,3 +32,4 @@ generated quantities {
   for (j in 1:J)
     ypred[j] = normal_rng (theta[j] , sigma);
 }
+
