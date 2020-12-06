@@ -6,12 +6,19 @@ author:
 - Georgios Karakasidis \and
 - Rongzhi Liu
 date: "`r format(Sys.time(), '%d %B %Y')`"
-output: pdf_document
+output: 
+  pdf_document:
+    toc: yes
+    toc_depth: 2
+    number_sections: true
+    highlight: tango
 editor_options: 
   chunk_output_type: console
 bibliography: references.bibtex
 urlcolor: blue
 ---
+
+\newpage
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -115,18 +122,6 @@ For more information about the implementation you may check the [data transforma
 By preprocessing our data we managed to get a single scoring measurement for each team. Our next step is to build a model on top of these transformed data and try to predict/sample future scores (future performances). Our approach invloved two models which are going to be described below. For the implementation we used the RStan [@rstan] package of R.
 
 At first, we are going to represent our data as a 2-dimensional array which will contain information about each team. The rows will denote the matches and the columns will denote the teams, while the content of each array cell will be the above computed performance scores.
-
-```{r,echo=FALSE,message=FALSE,warning=FALSE}
-library(rstan)
-library(knitr)
-library(dplyr)
-library(loo)
-
-# read the match performance of each team in group stage
-# have make the data to look like factory data
-data <- read.csv(file = './data/match_performance_group_region.csv')
-```
-
 
 
 Below, we are going to describe two model-architecture approaches, hierarchical and separate models. In the first case, under the hierarchical normal model, we assume that our data (Dota 2 matches per team for each region) are independently normally distributed within a certain number of groups (which is equal to the number of teams that each region has).Here, all groups share a common variance $\sigma^2$ while they have different (team-specific) means $\theta_j$ [@gelman2013bayesian]. We also assume that the means follow a certain distribution (disccussed in the [next section](#choice-of-priors)) with unknown mean $\theta_{\mu}$ and standard deviation $\theta_{\sigma}$.
@@ -304,7 +299,9 @@ It is also worth mentioning that the prediction accuracy is not very high. Possi
 
 2. Our performance score/metric is not ideal and does not completely reflect the power of each team. This is discussed in more detail in the [improvements section](#discussion-of-issues-and-possible-improvements).
 
-# Sensitivity Analysis
+# Prior Sensitivity Analysis
+
+As mentioned (above)[#choice-of-priors], trying out different weakly informative priors yielded similar results. So, in order to avoid clutter we chose not to include more results since the figures are almost the same (with the exception of maximum 1 result).
 
 # Discussion of Issues and Possible Improvements
 From the above results, we can see that there is a large number of issues and improvements can be made in the current work.
