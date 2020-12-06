@@ -5,7 +5,7 @@ author:
 - Ekaterina Marchenko \and
 - Georgios Karakasidis \and
 - Rongzhi Liu
-date: "'r format(Sys.time(), '%d %B %Y')'"
+date: "`r format(Sys.time(), '%d %B %Y')`"
 output: pdf_document
 editor_options: 
   chunk_output_type: console
@@ -25,7 +25,7 @@ library(dplyr)
 
 In this report, we present a Bayesian Analysis approach for evaluating team performances for the esport *Dota 2*. This topic was chosen due to the personal interest of our team members in esports. We formed the group based on this and all of us were familiar with either Dota 2 or League of Legends. 
 
-Before describing the problem more thouroughly, we would like to provide a brief insight into the scope. Dota 2 is a MOBA game and an esports discipline. Esports have a similar structure as traditional sports, where there are professional seasons which roughly equal to a year, and these are finished with a main tournament (in our case: *The International (TI)*). 
+Before describing the problem more thouroughly, we would like to provide a brief insight into what we are trying to achieve. Dota 2 is a MOBA game and an esports discipline. Esports have a similar structure as traditional sports, where there are professional seasons which roughly equal to a year, and these are finished with a main tournament (in our case: *The International (TI)*). 
 
 The tournament itself consists of two stages: qualifications and main event. The latter is also split into two parts: group stage, and play-offs. During the group stage, teams compete in order to have a better starting position in the play-off stage. For our analysis, we used the data from the last TI where the best teams in the world competed.
 
@@ -112,11 +112,11 @@ For more information about the implementation you may check the [data transforma
 
 # Problem Solving
 
-By preprocessing our data we managed to get a single scoring measurement for each team. Our next step is to build a model on top of these transformed data and try to predict/sample future scores (future performances). 
+By preprocessing our data we managed to get a single scoring measurement for each team. Our next step is to build a model on top of these transformed data and try to predict/sample future scores (future performances). Our approach invloved two models which are going to be described below. For the implementation we used the RStan [@rstan] package of R.
 
-We are going to represent our data as a 2-dimensional array which will contain information about each team. The rows will denote the matches and the columns will denote the teams, while the content of each array cell will be the above performance scores.
+At first, we are going to represent our data as a 2-dimensional array which will contain information about each team. The rows will denote the matches and the columns will denote the teams, while the content of each array cell will be the above computed performance scores.
 
-```{r,echo=FALSE}
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
 library(rstan)
 library(knitr)
 library(dplyr)
@@ -137,9 +137,9 @@ In the case of separate models, we assume that each team has its own model and s
 
 ## Choice of Priors
 
-Our first trials consisted of trivial priors which contains no problem-specific information, meaning that we did not use any current knowledge while picking them. The reason we chose these weakly informative priors is because we did not want to use current knowledge since it would skew our results towards a certain assumption (e.g. that the teams of region $X$ perform better) which would not hold in the general case.
+Our first trials consisted of trivial priors which contain no problem-specific information, meaning that we did not use any current knowledge while picking them. The reason we chose these weakly informative priors is because we did not want to use current knowledge since it would skew our results towards a certain assumption (e.g. that the teams of region $X$ perform better) which would not hold in the general case.
 
-While tuning these priors we noticed that the results and the output diagnositics were mostly the same. This made us stay with the choices above since these weakly informative priors showed some stability. 
+While tuning these priors we noticed that the results and the output diagnostics were mostly the same. This made us stay with the choices above since these weakly informative priors showed some stability. 
 
 In our problem we represent our observed performances by $y_{ij}$, where $i=1..N$ denotes the current match and $j$ corresponds to the team of a certain region. So $y_{ij}$ is the performance score of team j in game i. We can now mathematically express the separate model as:
 $$
@@ -159,10 +159,18 @@ $$
 y_{ij} \sim N(\theta_j, \sigma)
 $$
 
-$$\theta_{\mu} \sim N(0, 100)$$
-$$\theta_{\sigma} \sim inv-\chi^2(0.1)$$
-$$\theta_j \sim N(\theta_{\mu}, \theta_{\sigma})$$
-$$\sigma \sim inv-\chi^2(0.1)$$
+$$
+\theta_{\mu} \sim N(0, 100)
+$$
+$$
+\theta_{\sigma} \sim inv-\chi^2(0.1)
+$$
+$$
+\theta_j \sim N(\theta_{\mu}, \theta_{\sigma})
+$$
+$$
+\sigma \sim inv-\chi^2(0.1)
+$$
 
 
 In the representations $\theta_{\mu}$ and $\theta_{\sigma}$ are the hyper-priors of the means (and the means are denoted as $\theta_j$ for each team).
@@ -170,68 +178,35 @@ In the representations $\theta_{\mu}$ and $\theta_{\sigma}$ are the hyper-priors
 
 ## Separate Model
 
-Firstly, we built a separate model which could reflect each team performance separately. 
+Firstly, we built a separate model which could reflect each team performance separately. The idea behind the hierarchical model has already been discussed and so we are going to go straight to the implementation.
 
 
 
-
-### Model Assessment
-
-With the above weakly informative priors we managed to reach converge after compiling 5 stan models (one for each region) as follows (only for the european region):
-
-```{r,results='hide',message=FALSE}
-hm <- rstan::stan_model(file = './model/Region-Hierarchical.stan')
-Europe_data <- list(y = data[,1:6],  # the observed performances
-                    N = nrow(data[,1:6]),  # number of teams
-                    J = ncol(data[,1:6]))  # number of matches
-# compile the model with a standard seed
-model_Europe_hm <- rstan::sampling(hm, data = Europe_data, seed=42)
-draws_Europe_hm <- as.data.frame(model_Europe_hm)
-```
-
-
-
-
-### Stan code
-You could find the stan code in [appendix](#stan-code).
-
-We use the following code to run separate model on our dataset.
->>>>>>> 3aad2ff95e33b108ca8e2261dd6d914f0df5b470
+### Using the model
+You may find the stan implementation of the separate model in the [appendix (Stan Code)](#separate-model-impementation). Now in order to run the separate model on our dataset we are using the following R code:
 
 ```{r, results='hide', message = FALSE, warning=FALSE}
-data <- read.csv(file = './data/match_performance_group_region.csv')
+data <- read.csv(file = './data/match_performance_group_region.csv')  # read dataset
 
-sm <- rstan::stan_model(file = './model/Separate.stan')
-stan_data <- list(y = data,
-                  N = nrow(data),
-                  J = ncol(data))
-model_sm <- rstan::sampling(sm, data = stan_data)
-model_sm
-draws_sm <- as.data.frame(model_sm)
+sm <- rstan::stan_model(file = './model/Separate.stan')  # load model
+stan_data <- list(y = data,  # team performances
+                  N = nrow(data),  # number of matches of each team
+                  J = ncol(data))  # number of teams
+model_sm <- rstan::sampling(sm, data = stan_data) # load data to our model and compile
+
+draws_sm <- as.data.frame(model_sm)  # convert to data frame
 ```
 
 ## Hierarchical Model
 
-The goal here is to create a hierarchical model for the teams of each region. As what we have mentioned above, we could devided the 18 teams to six regions(Europe, China, CIS, Southeast Asia, North America, South America).
+The goal here is to create a hierarchical model for the teams of each region. As we have already mentioned above, we can divide the 18 teams to six regions (Europe, China, CIS, Southeast Asia, North America, South America).
 
-We use a same hierarchical structure to different regions. Like in factory date, different suppliers provide different machines, but they share a same hierarchical model.
+Now, in order to build the models, we are going to use the same hierarchical structure for all different regions. This way we are sure that there is no external bias. 
 
-### Choice of Priors
-At first try, we set the prior distribution of each region is same. And we still use the weaker prior distribution which we have used in separate model.
-$$y_{ij}\  \backsim \ N( \theta_r, \ \sigma)\\$$
-$y_{ij}$ is the performance score of team j in game i, $\theta_r$ represents the mean performance of region r.
+### Using the Model
+You may find the stan implementation of the hierarchical model in the [appendix (Stan Code)](#hierarchical-model-impementation). Here, for each region, we run the hierarchical model on its data set points (the matches of the teams of that region). For example, in the Europe region, we have the team Alliance, CHAOS, OG, NiP, Secret, Liquid to form the data set. 
 
-$$\theta_r\  \backsim \ N(\mu_p,\sigma_p)\\$$
-$$\sigma\  \backsim \ Inv- \chi ^2(0.1)$$
-$$\mu_p\  \backsim \ N(0,10)\\$$
-$$\sigma_p\  \backsim \ Inv- \chi ^2(0.1)$$
-
-### Stan code
-You could find the stan code in [appendix](#stan-code)). 
-
-For each region, We run the hierarchical model on its data set. For example, in Europe region, we have the team:Alliance, CHAOS, OG, NiP, Secret, Liquid to form the data set. 
-
-```{r, results='hide', message = FALSE, warning=FALSE}
+```{r,results='hide',message=FALSE,warning=FALSE}
 hm <- rstan::stan_model(file = './model/Region-Hierarchical.stan')
 Europe_data <- list(y = data[,1:6],
                   N = nrow(data[,1:6]),
@@ -242,6 +217,24 @@ draws_Europe_hm <- as.data.frame(model_Europe_hm)
 ```
 
 # Convergence Diagnostics
+
+
+## Separate Model
+
+
+## Hierarchical Model
+
+With the above weakly informative priors we managed to reach converge after compiling 5 stan models (one for each region) as follows (only for the european region):
+
+```{r,results='hide',message=FALSE,warning=FALSE}
+hm <- rstan::stan_model(file = './model/Region-Hierarchical.stan')
+Europe_data <- list(y = data[,1:6],  # the observed performances
+                    N = nrow(data[,1:6]),  # number of teams
+                    J = ncol(data[,1:6]))  # number of matches
+# compile the model with a standard seed
+model_Europe_hm <- rstan::sampling(hm, data = Europe_data, seed=42)
+draws_Europe_hm <- as.data.frame(model_Europe_hm)
+```
 
 # Posterior Predictive Checks
 We compare the MCMC results with the performance data which we used.
@@ -391,7 +384,8 @@ By using the performance function above for both teams of every match we can get
 
 ## Stan code
 
-### Separate Model
+### Separate Model Implementation
+
 ```{stan output.var="Separate.stan", warning=FALSE}
 data {
   int < lower =0> N;//the number of matches
@@ -423,8 +417,8 @@ generated quantities {
 }
 ```
 
-### Hierarchical Model
-```{stan output.var="Region-Hierarchical.stan", warning=FALSE}
+### Hierarchical Model Implementation
+```{stan output.var="Region-Hierarchical.stan",warning=FALSE}
 data {
   int < lower =0> N;//the number of matches
   int < lower =0> J;//the number of teams in this region
