@@ -5,7 +5,7 @@ author:
 - Ekaterina Marchenko \and
 - Georgios Karakasidis \and
 - Rongzhi Liu
-date: "`r format(Sys.time(), '%d %B %Y')`"
+date: "'r format(Sys.time(), '%d %B %Y')'"
 output: pdf_document
 editor_options: 
   chunk_output_type: console
@@ -17,6 +17,8 @@ urlcolor: blue
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(rstan)
+library(knitr)
+library(dplyr)
 ```
 
 # Introduction
@@ -145,6 +147,7 @@ For the hierarchical model these weakly informative priors can be mathematically
 - $\theta_j \sim N(\theta_{\mu}, \theta_{\sigma})$ (separate for each model/region)
 - $\sigma \sim inv-\chi^2(0.1)$ (same for all models/regions)
 
+
 In the representations $\theta_{\mu}$ and $\theta_{\sigma}$ are the hyper-priors of the means (and the means are denoted as $\theta_j$ for each team).
 
 While tuning these priors we noticed that the results and the output diagnositics were mostly the same. This made us stay with the choices above since these weakly informative priors showed some stability. 
@@ -160,9 +163,11 @@ $$
 \sigma_j \sim Inv-\chi^2(0.1)
 $$
 
-## Hierarchical Model
+## Separate Model
 
-The goal here is to create a hierarchical model for the teams of each region. We achieved this by using rstan [@rstan] (see [appendix](#stan-code) for the implementation).
+Firstly, we built a separate model which could reflect each team performance separately. 
+
+
 
 
 ### Model Assessment
@@ -181,29 +186,146 @@ draws_Europe_hm <- as.data.frame(model_Europe_hm)
 
 
 
+### Choice of Priors
+We use weaker prior distribution as our priors. 
+$$y_{ij}\  \backsim \ N( \mu_j, \ \sigma_j  )\\$$
+$y_{ij}$ is the performance score of team j in game i.
 
-## Separate Model
+$$\mu_j\  \backsim \ N(0,10)\\$$
+$$\sigma_j\  \backsim \ Inv- \chi^2(0.1)$$
 
-For comparison, we also built a separate model which "..."
+### Stan code
+You could find the stan code in [appendix](#stan-code).
+
+We use the following code to run separate model on our dataset.
+>>>>>>> 3aad2ff95e33b108ca8e2261dd6d914f0df5b470
+
+```{r, results='hide', message = FALSE, warning=FALSE}
+data <- read.csv(file = './data/match_performance_group_region.csv')
+
+sm <- rstan::stan_model(file = './model/Separate.stan')
+stan_data <- list(y = data,
+                  N = nrow(data),
+                  J = ncol(data))
+model_sm <- rstan::sampling(sm, data = stan_data)
+model_sm
+draws_sm <- as.data.frame(model_sm)
+```
+
+## Hierarchical Model
+
+The goal here is to create a hierarchical model for the teams of each region. As what we have mentioned above, we could devided the 18 teams to six regions(Europe, China, CIS, Southeast Asia, North America, South America).
+
+We use a same hierarchical structure to different regions. Like in factory date, different suppliers provide different machines, but they share a same hierarchical model.
 
 ### Choice of Priors
+At first try, we set the prior distribution of each region is same. And we still use the weaker prior distribution which we have used in separate model.
+$$y_{ij}\  \backsim \ N( \theta_r, \ \sigma)\\$$
+$y_{ij}$ is the performance score of team j in game i, $\theta_r$ represents the mean performance of region r.
 
+$$\theta_r\  \backsim \ N(\mu_p,\sigma_p)\\$$
+$$\sigma\  \backsim \ Inv- \chi ^2(0.1)$$
+$$\mu_p\  \backsim \ N(0,10)\\$$
+$$\sigma_p\  \backsim \ Inv- \chi ^2(0.1)$$
+
+### Stan code
+You could find the stan code in [appendix](#stan-code)). 
+
+For each region, We run the hierarchical model on its data set. For example, in Europe region, we have the team:Alliance, CHAOS, OG, NiP, Secret, Liquid to form the data set. 
+
+```{r, results='hide', message = FALSE, warning=FALSE}
+hm <- rstan::stan_model(file = './model/Region-Hierarchical.stan')
+Europe_data <- list(y = data[,1:6],
+                  N = nrow(data[,1:6]),
+                  J = ncol(data[,1:6]))
+model_Europe_hm <- rstan::sampling(hm, data = Europe_data)
+model_Europe_hm
+draws_Europe_hm <- as.data.frame(model_Europe_hm)
+```
 
 # Convergence Diagnostics
 
 # Posterior Predictive Checks
+We compare the MCMC results with the performance data which we used.
+
 
 # Model Comparison
 
 # Predictive Performance Assessment
 
+## Predictive Performance
+The prediction workflow for a series match between team $X$ and $Y$ is the following: 
+
+1. A normal series is a two out of three game series. But here we only compare each team's expected performance scores to predict who is more likely to win in the series.
+
+2. The $ypred$ in stan code represents the predict performance score of each team. So we compare the $ypred$ of team $X$ and $Y$, we could get the win possibility. The function predict_result_sm below will do this:
+```{r}
+predict_result_sm <- function(team_num_1, team_num_2) {
+  ypred_1 <- draws_sm[, 36 + team_num_1]
+  ypred_2 <- draws_sm[, 36 + team_num_2]
+  win_rate_1 = {}
+  for (i in 1:length(ypred_1)) {
+    win_rate_1[i] = ypred_1[i] / (ypred_1[i] + ypred_2[i])
+  }
+  
+  mean_rate_1 <- (mean(win_rate_1))
+  
+  return(mean_rate_1)
+}
+```
+
+3. If the win possibility of team $X$ is above 0.5, we will say that the team $X$ is more likely to win in this game series.
+
+Here is a example to predict which team will win between PSG.LGD and VP.
+```{r}
+#return the win team
+compare <- function(team_name_1,team_name_2){
+  team_num_1 <- which(colnames(data) == team_name_1)
+  team_num_2 <- which(colnames(data) == team_name_2)
+  predict <- predict_result_sm(team_num_1,team_num_2)
+  if(predict>=0.5)
+    return(team_name_1)
+  else 
+    return(team_name_2)
+}
+
+#Calculate the result of main event stage
+compare("PSG.LGD","VP")
+```
+
+We actually apply this method to all the series in main event. Here is the predict result compare to the real one. The green boxes indicate that the predictions correspond to the actual results, red boxes indicate that the predictions do not correspond to the actual results.
+
+Predictive Performance of separate model: 
+
+![separate_result](./pictures/separate_result.png)
+
+Predictive Performance of hierarchical model:  
+
+![hierarchical_result](./pictures/hierarchical_result.png)
+
+## Analysis
+We could find there is no significant difference in the results between separate model and hierarchical model. It shows that regional factors do not play a significant role. In other words, there are no significant differences between the teams in the different regions.
+
+And the prediction accuracy is not very high.The reasons could be the following:
+
+1. We just predict the main event result based on group stage performance. It often happens that a team is in poor form in the group stage, but gets better and better in the knockout stages. With this type of team, our predictions are difficult to be accurate. Like the Team Liquid, it was only 14th out of all teams in the group stage, but in the end it finished in second place. So we were almost entirely wrong in our predictions for this team.
+
+2. Maybe our performance score could not completely reflects the power of each team. We will discuss it in more detail in improvement part.
+
 # Sensitivity Analysis
 
 # Discussion of Issues and Possible Improvements
+From the above results, we can see that there are still a number of issues improvements can be made in the current work.
 
+1. The data from the group stage matches does not fully reflect the ability of the teams, so we should also include the previous performance of each team in the database.
+
+2. The method of adding up all the parameters to get a performance score is too simple. Perhaps we should find a more accurate way of representing the performance of the individual teams. For example, by assigning different weights to performance indicators based on group stage ranking, so that the final score matches their actually performance.
 # Conclusion
 
 # Self-Reflection
+
+## Rongzhi Liu
+There are many things in life that cannot be accurately and simply measured by a number, such as how much he loves me. This work made me realize that it is sometimes more difficult to get the right data than it is to analyse it using Bayesian theory. In practice, there is a wide range of knowledge to be used and a variety of problems to be encountered. The practical problems often do not follow the fixed processes that we learn about on the course. For different problems, we first need to clarify the structure and requirements for solving them. If the structure is clear and precise, even a very simple model can give satisfactory results.
 
 # Appendix
 
@@ -271,6 +393,73 @@ By using the performance function above for both teams of every match we can get
 
 ## Stan code
 
-**TODO: ADD STAN CODE HERE**
+### Separate Model
+```{stan output.var="Separate.stan", warning=FALSE}
+data {
+  int < lower =0> N;//the number of matches
+  int < lower =0> J;//the number of teams 
+  vector [J] y[N];//the performance score
+}
 
+parameters {
+  vector [J] mu;
+  vector < lower =0 >[J] sigma ;
+}
+
+model {
+  for (j in 1:J){
+    mu[j] ~ normal (0, 10);
+    sigma [j] ~ inv_chi_square (0.1);
+  }
+
+  // likelihood
+  for (j in 1:J)
+    y[,j] ~ normal (mu[j], sigma [j]);
+}
+
+generated quantities {
+  vector [J] ypred;
+  // Compute predictive performance for each team
+  for (j in 1:J)
+    ypred[j] = normal_rng (mu [j] , sigma [j]);
+}
+```
+
+### Hierarchical Model
+```{stan output.var="Region-Hierarchical.stan", warning=FALSE}
+data {
+  int < lower =0> N;//the number of matches
+  int < lower =0> J;//the number of teams in this region
+  vector [J] y[N];//the performance score
+}
+
+parameters {
+  real mu_p;
+  real < lower =0 > sigma_p;
+  vector [J] theta;
+  real < lower =0 > sigma ;
+}
+
+model {
+  // priors
+  mu_p ~ normal (0, 10);
+  sigma_p ~ inv_chi_square (0.1);
+  
+  for (j in 1:J){
+    theta[j] ~ normal (mu_p, sigma_p);
+  }
+  sigma ~ inv_chi_square (0.1);
+
+  // likelihood
+  for (j in 1:J)
+    y[,j] ~ normal (theta[j], sigma);
+}
+
+generated quantities {
+  vector [J] ypred;
+  // Compute predictive performance for each team in this region
+  for (j in 1:J)
+    ypred[j] = normal_rng (theta[j] , sigma);
+}
+```
 # References

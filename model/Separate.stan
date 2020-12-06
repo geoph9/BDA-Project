@@ -11,7 +11,7 @@ parameters {
 
 model {
   for (j in 1:J){
-    mu[j] ~ normal (0, 100);
+    mu[j] ~ normal (0, 10);
     sigma [j] ~ inv_chi_square (0.1);
   }
 

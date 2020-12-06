@@ -26,10 +26,7 @@ predict_result_sm <- function(team_num_1, team_num_2) {
   
   mean_rate_1 <- (mean(win_rate_1))
   
-  if (mean_rate_1 >= 0.5)
-    return(team_num_1)
-  else
-    return(team_num_2)
+  return(mean_rate_1)
 }
 
 #return the win team
@@ -37,10 +34,18 @@ compare <- function(team_name_1,team_name_2){
   team_num_1 <- which(colnames(data) == team_name_1)
   team_num_2 <- which(colnames(data) == team_name_2)
   predict <- predict_result_sm(team_num_1,team_num_2)
-  if(predict == team_num_1)
+  if(predict>=0.5)
     return(team_name_1)
   else 
     return(team_name_2)
+}
+
+#return the win team
+compare_rate <- function(team_name_1,team_name_2){
+  team_num_1 <- which(colnames(data) == team_name_1)
+  team_num_2 <- which(colnames(data) == team_name_2)
+  predict <- predict_result_sm(team_num_1,team_num_2)
+  return(predict)
 }
 
 #Calculate the result of main event stage
@@ -66,6 +71,30 @@ compare("Liquid","Secret")
 compare("PSG.LGD","OG")
 compare("PSG.LGD","Liquid")
 compare("OG","Liquid")
+
+#output actually win rate
+compare_rate("PSG.LGD","VP")
+compare_rate("VG","TNC")
+compare_rate("OG","Newbee")
+compare_rate("Secret","EG")
+compare_rate("Alliance","RNG")
+compare_rate("Fnatic","Liquid")
+compare_rate("Infamous","KG")
+compare_rate("Mineski","Na.Vi")
+compare_rate("VP","RNG")
+compare_rate("TNC","Liquid")
+compare_rate("Newbee","Infamous")
+compare_rate("Secret","Mineski")
+compare_rate("PSG.LGD","VG")
+compare_rate("OG","EG")
+compare_rate("RNG","Liquid")
+compare_rate("Infamous","Secret")
+compare_rate("EG","Liquid")
+compare_rate("VG","Secret")
+compare_rate("Liquid","Secret")
+compare_rate("PSG.LGD","OG")
+predict_result_sm("PSG.LGD","Liquid")
+compare_rate("OG","Liquid")
 
 hm <- rstan::stan_model(file = './model/Region-Hierarchical.stan')
 Europe_data <- list(y = data[,1:6],
@@ -122,18 +151,26 @@ predict_result_hm <- function(team_num_1, team_num_2) {
   
   mean_rate_1 <- (mean(win_rate_1))
   
-  if (mean_rate_1 >= 0.5)
-    return(team_num_1)
-  else
-    return(team_num_2)
+  return(mean_rate_1)
+}
+
+#output the win rate of different teams
+compare_hm_rate<- function(team_name_1,team_name_2){
+  team_num_1 <- which(colnames(data) == team_name_1)
+  team_num_2 <- which(colnames(data) == team_name_2)
+  win_rate_1 <- predict_result_hm(team_num_1,team_num_2)
+  if(win_rate_1 >= 0.5)
+    return(team_name_1)
+  else 
+    return(team_name_2)
 }
 
 #return the win team
 compare_hm <- function(team_name_1,team_name_2){
   team_num_1 <- which(colnames(data) == team_name_1)
   team_num_2 <- which(colnames(data) == team_name_2)
-  predict <- predict_result_hm(team_num_1,team_num_2)
-  if(predict == team_num_1)
+  win_rate_1 <- predict_result_hm(team_num_1,team_num_2)
+  if(win_rate_1 >= 0.5)
     return(team_name_1)
   else 
     return(team_name_2)
